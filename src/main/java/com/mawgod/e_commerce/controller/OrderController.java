@@ -3,6 +3,7 @@ package com.mawgod.e_commerce.controller;
 import com.mawgod.e_commerce.dto.request.CheckoutRequest;
 import com.mawgod.e_commerce.dto.response.OrderResponse;
 import com.mawgod.e_commerce.dto.response.PageResponse;
+import com.mawgod.e_commerce.security.SecurityUtils;
 import com.mawgod.e_commerce.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,10 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Order / checkout endpoints.
- *
- * Identity resolution (temporary — until Spring Security is enabled in Issue 8):
- *   - Pass X-User-Id header to identify the current user.
+ * Order / checkout endpoints. All routes require authentication (enforced by SecurityConfig).
+ * User identity is resolved from the JWT via SecurityUtils — no manual headers needed.
  */
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -28,46 +27,38 @@ public class OrderController {
 
     /**
      * POST /api/v1/orders/checkout
-     * Places an order from the caller's current cart.
-     * Returns 201 Created with the new order representation.
+     * Places an order from the caller's cart. Returns 201 Created.
      */
     @PostMapping("/checkout")
-    public ResponseEntity<OrderResponse> checkout(
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
-            @Valid @RequestBody CheckoutRequest request) {
-
-        OrderResponse order = orderService.checkout(userId, sessionId, request);
+    public ResponseEntity<OrderResponse> checkout(@Valid @RequestBody CheckoutRequest request) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        OrderResponse order = orderService.checkout(userId, null, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(order);
     }
 
     /**
      * GET /api/v1/orders
-     * Lists all orders for the current user, newest first (paginated).
-     *
-     * Query params: page (default 0), size (default 10)
+     * Returns paginated order history for the current user (newest first).
+     * Query params: page (default 0), size (default 10, max 50).
      */
     @GetMapping
     public ResponseEntity<PageResponse<OrderResponse>> getOrders(
-            @RequestHeader("X-User-Id") Long userId,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Pageable pageable = PageRequest.of(page, Math.min(size, 50),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        return ResponseEntity.ok(orderService.getOrdersForUser(userId, pageable));
+        Pageable pageable = PageRequest.of(
+                page, Math.min(size, 50), Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(
+                orderService.getOrdersForUser(SecurityUtils.getCurrentUserId(), pageable));
     }
 
     /**
      * GET /api/v1/orders/{id}
-     * Returns a single order detail including all line items.
+     * Returns a single order with all line items. 404 if not owned by the caller.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<OrderResponse> getOrder(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
-
-        return ResponseEntity.ok(orderService.getOrderById(id, userId));
+    public ResponseEntity<OrderResponse> getOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                orderService.getOrderById(id, SecurityUtils.getCurrentUserId()));
     }
 }

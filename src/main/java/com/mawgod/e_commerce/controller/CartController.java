@@ -3,20 +3,20 @@ package com.mawgod.e_commerce.controller;
 import com.mawgod.e_commerce.dto.request.AddCartItemRequest;
 import com.mawgod.e_commerce.dto.request.UpdateCartItemRequest;
 import com.mawgod.e_commerce.dto.response.CartResponse;
+import com.mawgod.e_commerce.security.SecurityUtils;
 import com.mawgod.e_commerce.service.CartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
  * Cart endpoints.
  *
- * Identity resolution (temporary — until Spring Security is enabled in Issue 8):
- *   - Authenticated users  →  pass X-User-Id header
- *   - Guest / anonymous    →  pass X-Session-Id header
- *
- * After Issue 8, replace header extraction with SecurityContextHolder.
+ * Identity resolution (post Issue 8):
+ *   - Authenticated users  → userId extracted from JWT via SecurityUtils
+ *   - Anonymous guests     → pass X-Session-Id header (cart GET is public)
  */
 @RestController
 @RequestMapping("/api/v1/cart")
@@ -27,70 +27,61 @@ public class CartController {
 
     /**
      * GET /api/v1/cart
-     * Returns the current cart for the caller.
+     * Public: authenticated users get their user cart,
+     * guests get/create a session cart via X-Session-Id.
      */
     @GetMapping
     public ResponseEntity<CartResponse> getCart(
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
+            Authentication authentication,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
 
-        CartResponse cart = (userId != null)
-                ? cartService.getCartForUser(userId)
-                : cartService.getCartForSession(requireSession(sessionId));
-
-        return ResponseEntity.ok(cart);
+        if (authentication != null && authentication.isAuthenticated()) {
+            return ResponseEntity.ok(
+                    cartService.getCartForUser(SecurityUtils.getCurrentUserId()));
+        }
+        return ResponseEntity.ok(
+                cartService.getCartForSession(requireSession(sessionId)));
     }
 
     /**
      * POST /api/v1/cart/items
-     * Adds a product to the cart (or increments quantity if already present).
+     * Requires authentication. Adds a product (or increments if already present).
      */
     @PostMapping("/items")
-    public ResponseEntity<CartResponse> addItem(
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
-            @Valid @RequestBody AddCartItemRequest request) {
-
-        return ResponseEntity.ok(cartService.addItem(userId, sessionId, request));
+    public ResponseEntity<CartResponse> addItem(@Valid @RequestBody AddCartItemRequest request) {
+        return ResponseEntity.ok(
+                cartService.addItem(SecurityUtils.getCurrentUserId(), null, request));
     }
 
     /**
      * PATCH /api/v1/cart/items/{itemId}
-     * Updates the quantity of an existing cart line.
+     * Requires authentication. Updates quantity of a line item.
      */
     @PatchMapping("/items/{itemId}")
     public ResponseEntity<CartResponse> updateItem(
             @PathVariable Long itemId,
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
             @Valid @RequestBody UpdateCartItemRequest request) {
-
-        return ResponseEntity.ok(cartService.updateItem(itemId, userId, sessionId, request));
+        return ResponseEntity.ok(
+                cartService.updateItem(itemId, SecurityUtils.getCurrentUserId(), null, request));
     }
 
     /**
      * DELETE /api/v1/cart/items/{itemId}
-     * Removes a single line from the cart.
+     * Requires authentication. Removes a single line.
      */
     @DeleteMapping("/items/{itemId}")
-    public ResponseEntity<CartResponse> removeItem(
-            @PathVariable Long itemId,
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
-
-        return ResponseEntity.ok(cartService.removeItem(itemId, userId, sessionId));
+    public ResponseEntity<CartResponse> removeItem(@PathVariable Long itemId) {
+        return ResponseEntity.ok(
+                cartService.removeItem(itemId, SecurityUtils.getCurrentUserId(), null));
     }
 
     /**
      * DELETE /api/v1/cart
-     * Clears all items from the cart.
+     * Requires authentication. Clears all items.
      */
     @DeleteMapping
-    public ResponseEntity<Void> clearCart(
-            @RequestHeader(value = "X-User-Id",    required = false) Long userId,
-            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
-
-        cartService.clearCart(userId, sessionId);
+    public ResponseEntity<Void> clearCart() {
+        cartService.clearCart(SecurityUtils.getCurrentUserId(), null);
         return ResponseEntity.noContent().build();
     }
 
@@ -99,7 +90,7 @@ public class CartController {
     private String requireSession(String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
             throw new IllegalArgumentException(
-                    "Either X-User-Id or X-Session-Id header must be provided");
+                    "Unauthenticated requests must provide an X-Session-Id header");
         }
         return sessionId;
     }
