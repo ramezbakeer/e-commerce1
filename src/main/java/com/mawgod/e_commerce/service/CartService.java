@@ -9,7 +9,7 @@ import com.mawgod.e_commerce.entity.Product;
 import com.mawgod.e_commerce.entity.User;
 import com.mawgod.e_commerce.exception.InsufficientStockException;
 import com.mawgod.e_commerce.exception.ResourceNotFoundException;
-import com.mawgod.e_commerce.mapper.CartMapper;
+import com.mawgod.e_commerce.mappers.CartMapper;
 import com.mawgod.e_commerce.repository.CartItemRepository;
 import com.mawgod.e_commerce.repository.CartRepository;
 import com.mawgod.e_commerce.repository.ProductRepository;
