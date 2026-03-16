@@ -62,8 +62,9 @@ public class OrderService {
             Product product = cartItem.getProduct();
 
             // Re-fetch for up-to-date stock inside the transaction
-            product = productRepository.findById(product.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", product.getId()));
+            Long productId = product.getId();
+            product = productRepository.findById(productId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
             if (product.getStockQuantity() < cartItem.getQuantity()) {
                 throw new InsufficientStockException(

@@ -1,7 +1,6 @@
 package com.mawgod.e_commerce.security;
 
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -89,7 +88,8 @@ public class JwtService {
     }
 
     private SecretKey signingKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtProperties.getSecret());
-        return Keys.hmacShaKeyFor(keyBytes);
+        // Treat the configured secret as a raw string key.
+        // Ensure app.jwt.secret is at least 32 characters for HS256.
+        return Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
     }
 }
