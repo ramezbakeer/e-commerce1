@@ -60,6 +60,7 @@ public class SecurityConfig {
                     ex.authenticationEntryPoint(jwtAuthEntryPoint))
 
             .authorizeHttpRequests(auth -> auth
+
                 // Auth endpoints — always public
                 .requestMatchers("/api/v1/auth/**").permitAll()
 
@@ -80,7 +81,7 @@ public class SecurityConfig {
                 // Cart mutations and all order endpoints require authentication
                 .requestMatchers("/api/v1/cart/**").authenticated()
                 .requestMatchers("/api/v1/orders/**").authenticated()
-
+                    .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/api-docs/**").permitAll()
                 // Anything else requires authentication
                 .anyRequest().authenticated()
             )

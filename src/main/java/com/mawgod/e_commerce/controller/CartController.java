@@ -5,6 +5,9 @@ import com.mawgod.e_commerce.dto.request.UpdateCartItemRequest;
 import com.mawgod.e_commerce.dto.response.CartResponse;
 import com.mawgod.e_commerce.security.SecurityUtils;
 import com.mawgod.e_commerce.service.CartService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/cart")
 @RequiredArgsConstructor
+@Tag(name = "Cart", description = "Shopping cart — guest reads via X-Session-Id, mutations require auth")
 public class CartController {
 
     private final CartService cartService;
@@ -31,6 +35,7 @@ public class CartController {
      * guests get/create a session cart via X-Session-Id.
      */
     @GetMapping
+    @Operation(summary = "Get current cart")
     public ResponseEntity<CartResponse> getCart(
             Authentication authentication,
             @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
@@ -48,6 +53,7 @@ public class CartController {
      * Requires authentication. Adds a product (or increments if already present).
      */
     @PostMapping("/items")
+    @Operation(summary = "Add item to cart", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<CartResponse> addItem(@Valid @RequestBody AddCartItemRequest request) {
         return ResponseEntity.ok(
                 cartService.addItem(SecurityUtils.getCurrentUserId(), null, request));
@@ -58,6 +64,7 @@ public class CartController {
      * Requires authentication. Updates quantity of a line item.
      */
     @PatchMapping("/items/{itemId}")
+    @Operation(summary = "Update item quantity", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<CartResponse> updateItem(
             @PathVariable Long itemId,
             @Valid @RequestBody UpdateCartItemRequest request) {
@@ -70,6 +77,7 @@ public class CartController {
      * Requires authentication. Removes a single line.
      */
     @DeleteMapping("/items/{itemId}")
+    @Operation(summary = "Remove item from cart", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<CartResponse> removeItem(@PathVariable Long itemId) {
         return ResponseEntity.ok(
                 cartService.removeItem(itemId, SecurityUtils.getCurrentUserId(), null));
@@ -80,6 +88,7 @@ public class CartController {
      * Requires authentication. Clears all items.
      */
     @DeleteMapping
+    @Operation(summary = "Clear entire cart", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<Void> clearCart() {
         cartService.clearCart(SecurityUtils.getCurrentUserId(), null);
         return ResponseEntity.noContent().build();

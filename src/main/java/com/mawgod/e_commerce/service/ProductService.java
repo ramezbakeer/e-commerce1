@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 
 @Service
@@ -28,16 +29,31 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
 
-    public PageResponse<ProductResponse> getActiveProducts(Pageable pageable) {
-        Page<Product> page = productRepository.findByActiveTrue(pageable);
-        return toPageResponse(page);
-    }
+    public PageResponse<ProductResponse> getFilteredProducts(
+            Long categoryId,
+            String categorySlug,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String search,
+            Pageable pageable) {
 
-    public PageResponse<ProductResponse> getByCategory(Long categoryId, Pageable pageable) {
-        if (!categoryRepository.existsById(categoryId)) {
-            throw new ResourceNotFoundException("Category", "id", categoryId);
+        // Normalise: empty string → null so JPQL :param IS NULL checks work
+        String searchTerm = (search != null && !search.isBlank()) ? search.trim() : null;
+
+        Page<Product> page;
+
+        if (categorySlug != null && !categorySlug.isBlank()) {
+            page = productRepository.findByCategorySlugWithFilters(
+                    categorySlug, minPrice, maxPrice, searchTerm, pageable);
+        } else {
+            // categoryId may be null — the query handles that
+            if (categoryId != null && !categoryRepository.existsById(categoryId)) {
+                throw new ResourceNotFoundException("Category", "id", categoryId);
+            }
+            page = productRepository.findWithFilters(
+                    categoryId, minPrice, maxPrice, searchTerm, pageable);
         }
-        Page<Product> page = productRepository.findByCategoryIdAndActiveTrue(categoryId, pageable);
+
         return toPageResponse(page);
     }
 

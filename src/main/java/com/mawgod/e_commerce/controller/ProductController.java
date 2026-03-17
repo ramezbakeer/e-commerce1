@@ -5,6 +5,9 @@ import com.mawgod.e_commerce.dto.request.UpdateProductRequest;
 import com.mawgod.e_commerce.dto.response.PageResponse;
 import com.mawgod.e_commerce.dto.response.ProductResponse;
 import com.mawgod.e_commerce.service.ProductService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -14,9 +17,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
+@Tag(name = "Products", description = "Product catalog — public reads, admin writes")
 public class ProductController {
 
     private final ProductService productService;
@@ -32,24 +38,27 @@ public class ProductController {
      *   categoryId – filter by category
      */
     @GetMapping
+    @Operation(summary = "List active products with pagination and filters")
     public ResponseEntity<PageResponse<ProductResponse>> getProducts(
             @RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "20")  int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
-            @RequestParam(required = false) Long categoryId) {
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String categorySlug,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String search) {
 
         Pageable pageable = buildPageable(page, size, sort);
-
-        PageResponse<ProductResponse> result = (categoryId != null)
-                ? productService.getByCategory(categoryId, pageable)
-                : productService.getActiveProducts(pageable);
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(
+                productService.getFilteredProducts(
+                        categoryId, categorySlug, minPrice, maxPrice, search, pageable));
     }
 
     /**
      * GET /api/v1/products/{id}
      */
+    @Operation(summary = "Get product by ID")
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getById(id));
@@ -58,6 +67,7 @@ public class ProductController {
     /**
      * GET /api/v1/products/slug/{slug}
      */
+    @Operation(summary = "Get product by slug")
     @GetMapping("/slug/{slug}")
     public ResponseEntity<ProductResponse> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(productService.getBySlug(slug));
@@ -67,6 +77,7 @@ public class ProductController {
      * POST /api/v1/products
      */
     @PostMapping
+    @Operation(summary = "Create a product", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody CreateProductRequest request) {
         ProductResponse created = productService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -76,6 +87,7 @@ public class ProductController {
      * PATCH /api/v1/products/{id}
      */
     @PatchMapping("/{id}")
+    @Operation(summary = "Update a product", security = @SecurityRequirement(name = "Bearer Auth"))
     public ResponseEntity<ProductResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateProductRequest request) {
@@ -85,6 +97,7 @@ public class ProductController {
     /**
      * DELETE /api/v1/products/{id}
      */
+    @Operation(summary = "Delete a product", security = @SecurityRequirement(name = "Bearer Auth"))
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
